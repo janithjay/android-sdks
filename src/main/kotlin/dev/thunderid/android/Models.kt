@@ -84,6 +84,48 @@ data class UsersMeMetaResponse(
     val schema: Map<String, AttributeSchema> = emptyMap(),
 )
 
+/** An application that has used an [SSOSession]. */
+data class SSOSessionParticipant(
+    val appId: String,
+    /** The application's name. Left out when the application can't be found. */
+    val appName: String? = null,
+    val firstJoinedAt: String,
+    val lastActiveAt: String,
+)
+
+/**
+ * A live SSO session of the signed-in user, as recorded by the ThunderID server.
+ *
+ * This is a server record, distinct from the tokens the SDK stores for the signed-in user.
+ */
+data class SSOSession(
+    val id: String,
+    val userId: String,
+    val authenticatedAt: String,
+    val createdAt: String,
+    val lastActiveAt: String,
+    val absoluteExpiresAt: String? = null,
+    val idleExpiresAt: String? = null,
+    val creationIp: String? = null,
+    val lastActiveIp: String? = null,
+    val userAgent: String? = null,
+    /**
+     * Whether this session issued the access token the request was made with. Every session can be
+     * false, for example when the token came from an earlier grant of the same application.
+     */
+    val isCurrent: Boolean = false,
+    /** The applications that have used the session, first joined first. */
+    val participants: List<SSOSessionParticipant> = emptyList(),
+)
+
+/** A page of SSO sessions returned by `GET /users/me/sessions`. */
+data class SSOSessionListResponse(
+    val totalResults: Int = 0,
+    val startIndex: Int = 0,
+    val count: Int = 0,
+    val sessions: List<SSOSession> = emptyList(),
+)
+
 data class TokenResponse(
     @SerializedName("access_token") val accessToken: String,
     @SerializedName("token_type") val tokenType: String,

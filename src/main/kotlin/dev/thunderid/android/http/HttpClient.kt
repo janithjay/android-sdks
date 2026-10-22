@@ -52,6 +52,11 @@ internal class HttpClient(
         headers: Map<String, String> = emptyMap(),
     ): T = request("PUT", path, body, requiresAuth, headers)
 
+    suspend inline fun <reified T : Any> delete(
+        path: String,
+        requiresAuth: Boolean = true,
+    ): T = request("DELETE", path, null, requiresAuth)
+
     suspend inline fun <reified T : Any> request(
         method: String,
         path: String,
@@ -101,6 +106,7 @@ internal class HttpClient(
             buildMap {
                 put("Content-Type", "application/json")
                 put("Accept", "application/json")
+                put("User-Agent", UserAgent.value)
                 putAll(headers)
                 if (requiresAuth) {
                     val token =

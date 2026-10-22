@@ -192,6 +192,52 @@ class ThunderIDClientTest {
             assertFalse(client.isSignedIn())
         }
 
+    // Sessions
+
+    @Test
+    fun `session operations before init throw SDK_NOT_INITIALIZED`() =
+        runTest {
+            val calls: List<suspend () -> Unit> =
+                listOf(
+                    { client.getUserSessions() },
+                    { client.revokeUserSession("s1") },
+                    { client.revokeUserSessions(exceptCurrent = true) },
+                )
+            calls.forEach { call ->
+                try {
+                    call()
+                    fail("Expected IAMException")
+                } catch (e: IAMException) {
+                    assertEquals(ThunderIDErrorCode.SDK_NOT_INITIALIZED, e.code)
+                }
+            }
+        }
+
+    @Test
+    fun `sessionsPath sends only the paging values that are set`() {
+        assertEquals("/users/me/sessions", ThunderIDClient.sessionsPath(null, null))
+        assertEquals("/users/me/sessions?limit=10", ThunderIDClient.sessionsPath(10, null))
+        assertEquals("/users/me/sessions?limit=10&offset=20", ThunderIDClient.sessionsPath(10, 20))
+    }
+
+    @Test
+    fun `sessionPath encodes the identifier as one path segment`() {
+        assertEquals("/users/me/sessions/01a139ac-6fa8", ThunderIDClient.sessionPath("01a139ac-6fa8"))
+        assertEquals("/users/me/sessions/a%2F..%2Fb%20c", ThunderIDClient.sessionPath("a/../b c"))
+    }
+
+    @Test
+    fun `sessionPath rejects a blank identifier`() {
+        listOf("", "  ").forEach { id ->
+            try {
+                ThunderIDClient.sessionPath(id)
+                fail("Expected IAMException")
+            } catch (e: IAMException) {
+                assertEquals(ThunderIDErrorCode.INVALID_INPUT, e.code)
+            }
+        }
+    }
+
     // Error codes
 
     @Test

@@ -14,6 +14,7 @@ import dev.thunderid.android.token.JWKSCache
 import dev.thunderid.android.token.TokenRefresher
 import dev.thunderid.android.token.TokenStore
 import dev.thunderid.android.token.TokenValidator
+import java.net.URLEncoder
 
 /**
  * ThunderID Android SDK client — Platform layer implementation of the full IAMClient interface (spec §7.1).
@@ -303,6 +304,39 @@ class ThunderIDClient {
         httpClient!!.post<Unit>("/users/me/update-credentials", mapOf("attributes" to mapOf(attribute to newValue)))
     }
 
+    // MARK: - Sessions
+
+    /**
+     * Retrieves one page of the signed-in user's live SSO sessions via `GET /users/me/sessions`, most
+     * recently active first. The session that issued the access token has `isCurrent` set.
+     */
+    suspend fun getUserSessions(
+        limit: Int? = null,
+        offset: Int? = null,
+    ): SSOSessionListResponse {
+        requireInitialized()
+        return httpClient!!.get(sessionsPath(limit, offset))
+    }
+
+    /**
+     * Revokes one of the signed-in user's SSO sessions via `DELETE /users/me/sessions/{id}`. The server
+     * signs it out and revokes the tokens its applications were issued. A session that is already
+     * gone fails with [ThunderIDErrorCode.NOT_FOUND].
+     */
+    suspend fun revokeUserSession(sessionId: String) {
+        requireInitialized()
+        httpClient!!.delete<Unit>(sessionPath(sessionId))
+    }
+
+    /**
+     * Revokes the signed-in user's SSO sessions via `DELETE /users/me/sessions`. With [exceptCurrent],
+     * the session that issued the access token is kept, so the user stays signed in.
+     */
+    suspend fun revokeUserSessions(exceptCurrent: Boolean = false) {
+        requireInitialized()
+        httpClient!!.delete<Unit>(if (exceptCurrent) "$SESSIONS_PATH?exceptCurrent=true" else SESSIONS_PATH)
+    }
+
     // MARK: - Flow Meta
 
     suspend fun getFlowMeta(
@@ -363,6 +397,25 @@ class ThunderIDClient {
             currentUser = User(claims.filterValues { it != null }.mapValues { it.value as Any })
         } catch (_: Exception) {
             // assertion is stored; user info will be fetched via getUser() on next access
+        }
+    }
+
+    internal companion object {
+        const val SESSIONS_PATH = "/users/me/sessions"
+
+        /** The session list path, with only the paging values the caller set. */
+        fun sessionsPath(
+            limit: Int?,
+            offset: Int?,
+        ): String {
+            val query = listOfNotNull(limit?.let { "limit=$it" }, offset?.let { "offset=$it" }).joinToString("&")
+            return if (query.isEmpty()) SESSIONS_PATH else "$SESSIONS_PATH?$query"
+        }
+
+        /** Addresses one session, rejecting a blank identifier and encoding it as a path segment. */
+        fun sessionPath(sessionId: String): String {
+            if (sessionId.isBlank()) throw IAMException(ThunderIDErrorCode.INVALID_INPUT, "sessionId is required")
+            return "$SESSIONS_PATH/" + URLEncoder.encode(sessionId, Charsets.UTF_8.name()).replace("+", "%20")
         }
     }
 }
